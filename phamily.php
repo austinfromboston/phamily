@@ -4,12 +4,55 @@ class PhamilyParser {
     var $line_start = "^(\s*)";
     var $tag_start = "(\%(\w+))?";
     var $inline_attrs = "(([#\.][-_\w]+)*)";
-    var $explicit_attrs = "(\{([^}\n]+)\})?";
-    var $inline_content = "\s*([^\n]*)?$";
+    var $explicit_attrs = "(\{([^}]+)\})?";
+    var $inline_content = "\s*(.*)?$";
 
-    function parse( $template ) {
-        $parsed_tag = PhamilyParser::parse_tag( $template );
-        return "{$parsed_tag['spacing']}<{$parsed_tag['tag']}{$parsed_tag['attr_string']}>{$parsed_tag['inline_content']}</{$parsed_tag['tag']}>";
+    function parse( $template, $starting_line_no = 0 ) {
+        $template_lines = explode( "\n", $template );
+        $result = "";
+        for( $line_no = 0; $line_no < count( $template_lines ); $line_no++ ) {
+            $template_line = $template_lines[$line_no];
+            $parsed_tag = PhamilyParser::parse_tag( $template_line );
+            if( isset( $parsed_tag['tag']) && $parsed_tag['tag']) {
+                $nested_contents = PhamilyParser::parse_nested_content( array_slice( $template_lines, $line_no ) );
+                if( $nested_contents && isset( $nested_contents['content'])) {
+                    $parsed_tag['nested_content'] = $nested_contents['content'];
+                    $line_no = $line_no + $nested_contents['length'];
+                }
+            }
+            $result .= PhamilyParser::render_tag( $parsed_tag );
+        }
+        return $result;
+    }
+
+    function parse_nested_content( $template_lines, $starting_line_no=0 ) {
+        $testable_lines = array_slice( $template_lines, $starting_line_no+1 );
+        preg_match( "/^(\s*)/", $template_lines[0], $matches );
+        $spacing = isset( $matches[1]) ? strlen( $matches[1] ) : 0;
+        $padding = str_pad( "", $spacing + 2 );
+        $nested_lines = array( );
+        foreach( $testable_lines as $line_no => $test_line ) {
+            if( substr( $test_line, 0, strlen( $padding )) == $padding ) {
+                $nested_lines[] = $test_line;
+            } else {
+                break;
+            }
+        }
+        if( empty( $nested_lines )) return;
+        return array( 'content' => PhamilyParser::parse( implode( "\n", $nested_lines ) ), 
+                        'length' => count( $nested_lines ) );
+
+
+    }
+
+    function render_tag( $parsed_tag ) {
+        if( !( isset( $parsed_tag['tag']) && $parsed_tag['tag'])) {
+            return $parsed_tag['spacing'] . $parsed_tag['inline_content'] . "\n";
+        }
+        if( !( isset( $parsed_tag['nested_content']) && $parsed_tag['nested_content'])) {
+            return "{$parsed_tag['spacing']}<{$parsed_tag['tag']}{$parsed_tag['attr_string']}>{$parsed_tag['inline_content']}</{$parsed_tag['tag']}>\n";
+        }
+        return "{$parsed_tag['spacing']}<{$parsed_tag['tag']}{$parsed_tag['attr_string']}>\n{$parsed_tag['nested_content']}{$parsed_tag['spacing']}</{$parsed_tag['tag']}>\n";
     }
 
     function parse_tag( $template ) {
@@ -22,7 +65,7 @@ class PhamilyParser {
     }
     
     function process_matches( $matches ) {
-        if( !( isset( $matches[3]) && $matches[3])) {
+        if( !( isset( $matches[3]) && $matches[3]) && isset( $matches[4]) && $matches[4]) {
             $matches[3] = 'div';
         } 
 

@@ -32,4 +32,9 @@ class TestOfNestedContentParser extends UnitTestCase {
         $this->assertEqual( $result, "<html>\n  <head>\n    blah\n  </head>\n  <body>\n    wah\n  </body>\n</html>\n");
 
     }
+    function test_parse_super_nested_content( ) {
+        $result = $this->parser->parse( "%html\n  %head\n    blah\n  %body\n    wah\n    #header.active narf\n    %h2\n      Known Problems\n      and Complications\n    %h2 Solutions\n    plus" );
+        $this->assertEqual( $result, "<html>\n  <head>\n    blah\n  </head>\n  <body>\n    wah\n    <div class='active' id='header'>narf</div>\n    <h2>\n      Known Problems\n      and Complications\n    </h2>\n    <h2>Solutions</h2>\n    plus\n  </body>\n</html>\n");
+
+    }
 }

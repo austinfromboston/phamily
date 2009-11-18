@@ -6,16 +6,34 @@ class PhamilyParser {
     const inline_attrs = "(([#\.][-_\w]+)*)";
     const explicit_attrs = "(\{([^}]+)\})?";
     const inline_content = "\s*(.*)?$";
+    const script_start = "(=(.*))?";
+    const script_block_start = "-\s*(if\b.*)?";
 
     /* core method for rendering a haml template to html
      */
-    function render( $template, $starting_line_no = 0 ) {
+    function render( $template, $local_vars = array( ) ) {
+        $parsed_template = self::parse( $template );
+        $tempfile = tempnam( '/tmp', 'phamily-');
+        file_put_contents( $tempfile, $parsed_template );
+        foreach( $local_vars as $varname => $value ) {
+            $$varname = $value;
+        }
+        ob_start( );
+        include( $tempfile );
+        $rendered_template = ob_get_contents( );
+        ob_end_clean( );
+        #unlink( $tempfile );
+        return $rendered_template;
+    }
+
+    function parse( $template ) {
         $template_lines = explode( "\n", $template );
         $result = "";
         for( $line_no = 0; $line_no < count( $template_lines ); $line_no++ ) {
             $template_line = $template_lines[$line_no];
             $parsed_tag = self::parse_tag( $template_line );
-            if( isset( $parsed_tag['tag']) && $parsed_tag['tag']) {
+            if( ( isset( $parsed_tag['tag']) && $parsed_tag['tag']) 
+                    || ( isset( $parsed_tag['script_block']) && $parsed_tag['script_block'])) {
                 $nested_contents = self::parse_nested_content( array_slice( $template_lines, $line_no ) );
                 if( $nested_contents && isset( $nested_contents['content'])) {
                     $parsed_tag['nested_content'] = $nested_contents['content'];
@@ -44,8 +62,8 @@ class PhamilyParser {
             }
         }
         if( empty( $nested_lines )) return;
-        return array( 'content' => self::render( implode( "\n", $nested_lines ) ), 
-                        'length' => count( $nested_lines ) );
+        return array( 'content' => self::parse( implode( "\n", $nested_lines ) ), 
+                      'length'  => count( $nested_lines ) );
 
 
     }
@@ -53,7 +71,10 @@ class PhamilyParser {
     /* returns html when passed a data array describing a line
      */
     function render_tag( $parsed_tag ) {
-        if( !( isset( $parsed_tag['tag']) && $parsed_tag['tag'])) {
+        if(  isset( $parsed_tag['script_block']) && $parsed_tag['script_block']) {
+            return '<?php ' . $parsed_tag['script_block'] . " { ?>\n" . $parsed_tag['nested_content'] . "<?php } ?>\n";
+        }
+        if( !( isset( $parsed_tag['tag']) && $parsed_tag['tag'])){
             return $parsed_tag['spacing'] . $parsed_tag['inline_content'] . "\n";
         }
         if( !( isset( $parsed_tag['nested_content']) && $parsed_tag['nested_content'])) {
@@ -66,9 +87,21 @@ class PhamilyParser {
      */
     function parse_tag( $template ) {
         $matches = array( );
+        if( preg_match( 
+            "/" . self::spacing . self::script_block_start . "/",
+            $template, $matches )) {
+            return array( 
+                'spacing' => self::matches( 'spacing', $matches ),
+                'script_block' => $matches[2]
+            );
+            
+        }
+
+        $matches = array( );
         preg_match( 
-            "/" . self::spacing . self::tag_start . self::inline_attrs . self::explicit_attrs . self::inline_content . "/",
+            "/" . self::spacing . self::tag_start . self::inline_attrs . self::explicit_attrs . self::script_start . self::inline_content . "/",
             $template, $matches );
+        if( strpos( $template, '-')) var_dump( $matches );
 
         $all_attrs = self::merge_attrs( 
             self::process_inline_attributes( $matches ),
@@ -78,9 +111,18 @@ class PhamilyParser {
                 'spacing' => self::matches( 'spacing', $matches ),
                 'tag' => self::process_tag( $matches ),
                 'attr_string' => self::build_attr_string( $all_attrs ), 
-                'inline_content' => self::matches( 'inline_content', $matches )
+                'inline_content' => self::process_inline_content( $matches )
             );
 
+    }
+
+    function process_inline_content( $matches ) {
+        $script = self::matches( 'script', $matches );
+        if( !self::matches( 'script', $matches )) {
+            return self::matches( 'inline_content', $matches);
+        }
+        return "<?php print " . $script . "; ?>\n"
+                . self::matches( 'inline_content', $matches );
     }
 
     /* returns a particular block from a set of matches
@@ -91,7 +133,8 @@ class PhamilyParser {
             'tag'                   => 3,
             'inline_attributes'     => 4,
             'explicit_attributes'   => 7,
-            'inline_content'        => 8 
+            'script'                => 9,
+            'inline_content'        => 10
         );
 
         return isset( $matches[ $offsets[ $match_type ]]) && $matches[ $offsets[ $match_type ]] ? $matches[ $offsets[$match_type]]

@@ -41,4 +41,11 @@ class TestOfScriptParser extends UnitTestCase {
         $this->assertEqual( $result, "<div id='header'>\n  push\n</div>\n");
     }
         
+    function test_for_loop_block( ) {
+        $result = $this->parser->render( 
+                    "#header\n  - for( \$i=1; \$i<4; \$i++ )\n    %li= \"header \$i\"");
+        $this->assertEqual( $result, "<div id='header'>\n    <li>header 1</li>\n    <li>header 2</li>\n    <li>header 3</li>\n</div>\n");
+
+    }
+        
 }

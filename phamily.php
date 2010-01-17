@@ -7,7 +7,7 @@ class PhamilyParser {
     const explicit_attrs = "(\{([^}]+)\})?";
     const inline_content = "\s*(.*)?$";
     const script_start = "(=(.*))?";
-    const script_block_start = "-\s*((if|for)\b.*)?";
+    const script_block_start = "-\s*((if|for|foreach)\b.*)?";
 
     /* core method for rendering a haml template to html
      */

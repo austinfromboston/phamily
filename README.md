@@ -15,9 +15,9 @@ Initialization
 * Uses a clean hash literal syntax for tag attributes
 
 		$parser->render( "%h2{ 'class' => 'announce' } The dishes are done." );
-		## => <h2 class='announce'>The dishes are done.</h2>
+		#=> <h2 class='announce'>The dishes are done.</h2>
 
 * Recognizes indentation to open and close block constructs
 
  		$parser->render( "foreach( array( 1,2,3 ) as $number\n  = #$number ");
- 		#=> #1 #2 #3"
+ 		#=> #1 #2 #3
